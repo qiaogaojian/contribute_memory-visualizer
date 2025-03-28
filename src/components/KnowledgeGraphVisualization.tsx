@@ -1,4 +1,10 @@
-import { useEffect, useState, useRef, useCallback, useLayoutEffect } from "react";
+import {
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  useLayoutEffect,
+} from "react";
 import * as d3 from "d3";
 
 // Define types for our data structures
@@ -113,7 +119,7 @@ const KnowledgeGraphVisualization = () => {
       const reader = new FileReader();
       reader.onload = (e: ProgressEvent<FileReader>) => {
         const content = e.target?.result;
-        if (typeof content === 'string') {
+        if (typeof content === "string") {
           parseMemoryJson(content);
         }
       };
@@ -151,7 +157,7 @@ const KnowledgeGraphVisualization = () => {
       const reader = new FileReader();
       reader.onload = (e: ProgressEvent<FileReader>) => {
         const content = e.target?.result;
-        if (typeof content === 'string') {
+        if (typeof content === "string") {
           parseMemoryJson(content);
         }
       };
@@ -247,26 +253,26 @@ const KnowledgeGraphVisualization = () => {
       vx: undefined,
       vy: undefined,
       fx: undefined,
-      fy: undefined
+      fy: undefined,
     }));
 
     // Create links from filtered relations with proper typing
     const links: Link[] = [];
-    
+
     // First create all nodes to ensure they exist
     const nodeMap = new Map<string, Node>();
-    nodes.forEach(node => nodeMap.set(node.id, node));
-    
+    nodes.forEach((node) => nodeMap.set(node.id, node));
+
     // Then create links with proper source and target references
-    filteredRelations.forEach(relation => {
+    filteredRelations.forEach((relation) => {
       const source = nodeMap.get(relation.from);
       const target = nodeMap.get(relation.to);
-      
+
       if (source && target) {
         links.push({
           source,
           target,
-          type: relation.relationType
+          type: relation.relationType,
         });
       }
     });
@@ -277,31 +283,31 @@ const KnowledgeGraphVisualization = () => {
   // Calculate dimensions based on container size
   useLayoutEffect(() => {
     if (!containerRef.current) return;
-    
+
     const updateDimensions = () => {
       if (containerRef.current) {
         const { width, height } = containerRef.current.getBoundingClientRect();
         if (width > 0 && height > 0) {
-          console.log('Setting dimensions:', { width, height });
+          console.log("Setting dimensions:", { width, height });
           setDimensions({ width, height });
         } else {
-          console.warn('Invalid dimensions detected:', { width, height });
+          console.warn("Invalid dimensions detected:", { width, height });
         }
       }
     };
-    
+
     // Initial update
     updateDimensions();
-    
+
     // Add resize listener
-    window.addEventListener('resize', updateDimensions);
-    
+    window.addEventListener("resize", updateDimensions);
+
     // Force multiple recalculations to ensure container is fully rendered
     const timeoutId1 = setTimeout(updateDimensions, 100);
     const timeoutId2 = setTimeout(updateDimensions, 500);
-    
+
     return () => {
-      window.removeEventListener('resize', updateDimensions);
+      window.removeEventListener("resize", updateDimensions);
       clearTimeout(timeoutId1);
       clearTimeout(timeoutId2);
     };
@@ -313,12 +319,15 @@ const KnowledgeGraphVisualization = () => {
       console.log("Skipping graph render due to missing graph data or SVG ref");
       return;
     }
-    
+
     if (dimensions.width <= 0 || dimensions.height <= 0) {
-      console.log("Skipping graph render due to invalid dimensions:", dimensions);
+      console.log(
+        "Skipping graph render due to invalid dimensions:",
+        dimensions
+      );
       return;
     }
-    
+
     console.log("Rendering graph with dimensions:", dimensions);
 
     const { nodes, links } = getFilteredData();
@@ -330,10 +339,10 @@ const KnowledgeGraphVisualization = () => {
     // Clear previous graph
     const svgElement = svgRef.current;
     d3.select(svgElement).selectAll("*").remove();
-    
+
     // Set explicit dimensions on the SVG element
-    svgElement.setAttribute('width', `${width}px`);
-    svgElement.setAttribute('height', `${height}px`);
+    svgElement.setAttribute("width", `${width}px`);
+    svgElement.setAttribute("height", `${height}px`);
 
     // Create SVG
     const svg = d3
@@ -467,9 +476,14 @@ const KnowledgeGraphVisualization = () => {
     // Update positions on simulation tick
     simulation.on("tick", () => {
       link.attr("d", (d) => {
-        if (d.source.x === undefined || d.source.y === undefined || 
-            d.target.x === undefined || d.target.y === undefined) return "";
-            
+        if (
+          d.source.x === undefined ||
+          d.source.y === undefined ||
+          d.target.x === undefined ||
+          d.target.y === undefined
+        )
+          return "";
+
         const dx = d.target.x - d.source.x;
         const dy = d.target.y - d.source.y;
         const dr = Math.sqrt(dx * dx + dy * dy);
@@ -477,9 +491,14 @@ const KnowledgeGraphVisualization = () => {
       });
 
       linkText.attr("transform", (d) => {
-        if (d.source.x === undefined || d.source.y === undefined || 
-            d.target.x === undefined || d.target.y === undefined) return "";
-            
+        if (
+          d.source.x === undefined ||
+          d.source.y === undefined ||
+          d.target.x === undefined ||
+          d.target.y === undefined
+        )
+          return "";
+
         const dx = d.target.x - d.source.x;
         const dy = d.target.y - d.source.y;
         const x = (d.source.x + d.target.x) / 2;
@@ -557,12 +576,27 @@ const KnowledgeGraphVisualization = () => {
       {!graphData ? (
         <div className="flex flex-col items-center justify-center h-screen bg-gray-50 p-8">
           <div className="text-center mb-8">
+            <div className="flex justify-center mb-4">
+              <svg className="w-24 h-24" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path fill="none" stroke="#9370db" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"/>
+              </svg>
+            </div>
             <h1 className="text-3xl font-bold mb-4">
-              Knowledge Graph Visualizer
+              Anthropic Memory Visualizer
             </h1>
-            <p className="text-lg text-gray-600 mb-6">
-              Upload your memory.json file to visualize your knowledge graph
+            <p className="text-lg text-gray-600">
+              Explore and analyze knowledge graphs from Anthropic's Memory MCP
             </p>
+            <span>
+              <a
+                href="https://github.com/modelcontextprotocol/servers/tree/main/src/memory"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline text-xs"
+              >
+                https://github.com/modelcontextprotocol/servers/tree/main/src/memory
+              </a>
+            </span>
 
             {isLoading && (
               <div className="flex justify-center mb-6">
@@ -622,25 +656,27 @@ const KnowledgeGraphVisualization = () => {
             onDrop={handleDrop}
           >
             <div className="text-center mb-6">
-              <svg
-                className="mx-auto h-16 w-16 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
+              <div className="relative">
+                <svg
+                  className="mx-auto h-16 w-16 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
+                </svg>
+              </div>
               <h2 className="mt-4 text-lg font-medium text-gray-900">
                 Drag & drop your memory.json file
               </h2>
               <p className="mt-2 text-gray-500">or click to browse</p>
               <p className="mt-2 text-sm text-gray-400">
-                You can also paste JSON content directly (Ctrl+V / Cmd+V)
+                You can also paste JSON content directly (⌘+V / Ctrl+V)
               </p>
             </div>
 
@@ -653,51 +689,130 @@ const KnowledgeGraphVisualization = () => {
             />
             <label
               htmlFor="file-upload"
-              className="mt-2 py-2 px-6 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md cursor-pointer transition-colors"
+              className="mt-2 py-2 px-6 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-md cursor-pointer transition-colors flex items-center"
             >
-              Select File
+              <svg
+                className="w-5 h-5 mr-2"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"
+                />
+              </svg>
+              Upload memory.json
             </label>
           </div>
 
-          <div className="mt-8 text-center text-gray-600">
-            <h3 className="font-medium mb-2">Format Requirements:</h3>
-            <p className="text-sm mb-1">
-              • Memory JSON file from Anthropic Memory MCP Server
-            </p>
-            <p className="text-sm mb-1">
-              • Each line should be a valid JSON object
-            </p>
-            <p className="text-sm mb-1">
-              • Objects should have "type": "entity" or "type": "relation"
-            </p>
+          <div className="mt-8 text-center">
+            <h3 className="flex items-center justify-center font-medium mb-3 text-purple-800">
+              <svg 
+                className="w-5 h-5 mr-2" 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 24 24"
+              >
+                <path fill="none" stroke="#9370db" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"/>
+              </svg>
+              Anthropic Memory MCP Format:
+            </h3>
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 inline-block text-left">
+              <div className="flex items-center mb-2 text-purple-800">
+                <svg
+                  className="w-5 h-5 mr-2"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M3 5H21V7H3V5ZM3 11H21V13H3V11ZM3 17H21V19H3V17Z"
+                    fill="currentColor"
+                  />
+                </svg>
+                <p className="font-medium">File Structure:</p>
+              </div>
+              <p className="text-sm mb-2 ml-7">
+                • Each line is a separate JSON object (entities/relations)
+              </p>
+
+              <div className="flex items-center mb-2 text-purple-800">
+                <svg
+                  className="w-5 h-5 mr-2"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 18C11.45 18 11 17.55 11 17C11 16.45 11.45 16 12 16C12.55 16 13 16.45 13 17C13 17.55 12.55 18 12 18ZM13 14H11C11 12.32 12.68 12.5 12.68 11C12.68 10.18 11.96 9.5 11 9.5C10.22 9.5 9.54 10 9.16 10.75L7.56 9.83C8.19 8.33 9.5 7.5 11 7.5C13.21 7.5 15 9.08 15 11C15 12.94 13 13.31 13 14Z"
+                    fill="currentColor"
+                  />
+                </svg>
+                <p className="font-medium">Required Properties:</p>
+              </div>
+              <p className="text-sm mb-1 ml-7">
+                •{" "}
+                <code className="bg-gray-200 px-1 rounded">
+                  "type": "entity"
+                </code>{" "}
+                or{" "}
+                <code className="bg-gray-200 px-1 rounded">
+                  "type": "relation"
+                </code>
+              </p>
+              <p className="text-sm mb-2 ml-7">
+                • Entities need: name, entityType, observations
+              </p>
+              <p className="text-sm mb-1 ml-7">
+                • Relations need: from, to, relationType
+              </p>
+            </div>
           </div>
         </div>
       ) : (
         <div className="flex flex-col h-screen">
           <div className="bg-white p-4 border-b border-gray-300 shadow-sm">
             <div className="flex justify-between items-center mb-4">
-              <h1 className="text-xl font-bold">
-                Knowledge Graph Visualization
-              </h1>
+              <div className="flex items-center">
+                <svg 
+                  className="w-8 h-8 mr-2 text-purple-700" 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 24 24"
+                >
+                  <path fill="none" stroke="#9370db" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"/>
+                </svg>
+                <h1 className="text-xl font-bold">
+                  Anthropic Memory MCP Visualizer
+                </h1>
+              </div>
               <button
                 onClick={resetVisualization}
-                className="py-1 px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded transition-colors"
+                className="py-1 px-4 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded transition-colors flex items-center"
               >
+                <svg 
+                  className="w-4 h-4 mr-1" 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 24 24"
+                >
+                  <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"/>
+                </svg>
                 Upload New File
               </button>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 mb-4">
-              <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+              <div className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
                 {stats.entityCount} Entities
               </div>
-              <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+              <div className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium border-2 border-purple-200">
                 {stats.relationCount} Relations
               </div>
-              <div className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
+              <div className="bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
                 {stats.entityTypeCount} Entity Types
               </div>
-              <div className="bg-pink-100 text-pink-800 px-3 py-1 rounded-full text-sm font-medium">
+              <div className="bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-sm font-medium border-2 border-purple-100">
                 {stats.relationTypeCount} Relation Types
               </div>
             </div>
@@ -764,19 +879,36 @@ const KnowledgeGraphVisualization = () => {
             </div>
           </div>
 
-          <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 180px)', minHeight: '500px' }} ref={containerRef}>
-            <div className="flex-1 overflow-hidden relative" style={{ height: '100%', width: '100%' }}>
+          <div
+            className="flex flex-1 overflow-hidden"
+            style={{ height: "calc(100vh - 180px)", minHeight: "500px" }}
+            ref={containerRef}
+          >
+            <div
+              className="flex-1 overflow-hidden relative"
+              style={{ height: "100%", width: "100%" }}
+            >
               <svg
                 ref={svgRef}
                 width="100%"
                 height="100%"
                 className="bg-white absolute top-0 left-0"
-                style={{ minHeight: '500px' }}
+                style={{ minHeight: "500px" }}
               ></svg>
             </div>
 
             {selectedNode && (
-              <div className="w-1/3 p-4 bg-gray-50 border-l border-gray-300 overflow-y-auto">
+              <div className="w-1/3 p-4 bg-purple-50 border-l border-purple-200 overflow-y-auto">
+                <div className="flex items-center mb-3">
+                  <svg 
+                    className="w-5 h-5 mr-2 text-purple-600" 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path fill="none" stroke="#9370db" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"/>
+                  </svg>
+                  <span className="text-sm font-medium text-purple-600">Entity Details</span>
+                </div>
                 <h2 className="text-lg font-bold mb-2">{selectedNode.name}</h2>
                 <p className="text-sm text-gray-600 mb-4">
                   Type: {selectedNode.entityType}
@@ -784,7 +916,18 @@ const KnowledgeGraphVisualization = () => {
 
                 {selectedNode.observations && (
                   <>
-                    <h3 className="font-bold text-gray-700 mb-2">
+                    <h3 className="font-bold text-purple-800 mb-2 flex items-center">
+                      <svg
+                        className="w-4 h-4 mr-1"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z"
+                          fill="currentColor"
+                        />
+                      </svg>
                       Observations:
                     </h3>
                     <ul className="list-disc pl-5 mb-4">
@@ -829,9 +972,10 @@ const KnowledgeGraphVisualization = () => {
                                 →{" "}
                                 <button
                                   onClick={() => {
-                                    const targetEntity = graphData.entities.find(
-                                      (e) => e.name === r.to
-                                    );
+                                    const targetEntity =
+                                      graphData.entities.find(
+                                        (e) => e.name === r.to
+                                      );
                                     if (targetEntity) {
                                       // Convert Entity to Node
                                       const targetNode: Node = {
@@ -845,7 +989,7 @@ const KnowledgeGraphVisualization = () => {
                                         vx: undefined,
                                         vy: undefined,
                                         fx: undefined,
-                                        fy: undefined
+                                        fy: undefined,
                                       };
                                       setSelectedNode(targetNode);
                                     }
@@ -872,9 +1016,10 @@ const KnowledgeGraphVisualization = () => {
                               <li key={i} className="text-sm mb-1">
                                 <button
                                   onClick={() => {
-                                    const sourceEntity = graphData.entities.find(
-                                      (e) => e.name === r.from
-                                    );
+                                    const sourceEntity =
+                                      graphData.entities.find(
+                                        (e) => e.name === r.from
+                                      );
                                     if (sourceEntity) {
                                       // Convert Entity to Node
                                       const sourceNode: Node = {
@@ -888,7 +1033,7 @@ const KnowledgeGraphVisualization = () => {
                                         vx: undefined,
                                         vy: undefined,
                                         fx: undefined,
-                                        fy: undefined
+                                        fy: undefined,
                                       };
                                       setSelectedNode(sourceNode);
                                     }
