@@ -1,15 +1,16 @@
 # Memory Visualizer
 
-A React-based knowledge graph visualization tool that helps you visualize and explore memory data.
+Interactive visualizer for Anthropic's Memory MCP knowledge graphs. Instantly explore, debug, and analyze entities, relations, and observations from memory.json files in the Model Context Protocol.
 
 ## Features
 
-- Interactive D3-based graph visualization
-- Entity and relation filtering
-- Search functionality
-- Detailed node information panel
-- Drag & drop JSON file upload
-- Clipboard paste support
+- Interactive knowledge graph visualization using D3.js
+- Filter by entity and relation types
+- Search across entities and relationships
+- View detailed observations in the info panel
+- Drop memory.json files or paste directly from clipboard
+- Navigate complex entity networks visually
+- Debug AI memory structures and connections
 
 ## Development
 
@@ -24,28 +25,32 @@ npm run dev
 npm run build
 ```
 
-## Deployment with Coolify
-
-This project is configured for easy deployment with Coolify. To deploy:
-
-1. Fork or clone this repository
-2. In Coolify dashboard, create a new application
-3. Select your repository
-4. Choose "Static Site" as the deployment type
-5. Configure the following build settings:
-   - Build Command: `npm run build`
-   - Publish Directory: `dist`
-   - Node Version: 18 (or latest LTS)
-6. Deploy!
-
 ## Environment Variables
 
 No environment variables are required for basic deployment.
 
 ## Tech Stack
 
-- React
-- TypeScript
-- D3.js
+- React + TypeScript
+- D3.js for visualization
 - Vite
 - TailwindCSS
+
+## Knowledge Graph Structure
+
+Visualizes Anthropic's Memory MCP format:
+
+- **Entities**: Nodes with name, type, and observations (e.g., people, organizations)
+- **Relations**: Directed connections between entities in active voice (e.g., "works_at")
+- **Observations**: Atomic facts attached to entities
+
+## Use Cases
+
+- Debug entity relationships in AI memory
+- Analyze memory.json structures
+- Explore entity connections
+- Visualize graph growth over time
+
+## Related
+
+- [Anthropic Memory MCP](https://github.com/modelcontextprotocol/servers/tree/main/src/memory)
