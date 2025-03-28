@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useLayoutEffect } from "react";
 import * as d3 from "d3";
 
 // Define types for our data structures
@@ -45,6 +45,8 @@ interface Link {
 
 const KnowledgeGraphVisualization = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -272,25 +274,74 @@ const KnowledgeGraphVisualization = () => {
     return { nodes, links };
   };
 
+  // Calculate dimensions based on container size
+  useLayoutEffect(() => {
+    if (!containerRef.current) return;
+    
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const { width, height } = containerRef.current.getBoundingClientRect();
+        if (width > 0 && height > 0) {
+          console.log('Setting dimensions:', { width, height });
+          setDimensions({ width, height });
+        } else {
+          console.warn('Invalid dimensions detected:', { width, height });
+        }
+      }
+    };
+    
+    // Initial update
+    updateDimensions();
+    
+    // Add resize listener
+    window.addEventListener('resize', updateDimensions);
+    
+    // Force multiple recalculations to ensure container is fully rendered
+    const timeoutId1 = setTimeout(updateDimensions, 100);
+    const timeoutId2 = setTimeout(updateDimensions, 500);
+    
+    return () => {
+      window.removeEventListener('resize', updateDimensions);
+      clearTimeout(timeoutId1);
+      clearTimeout(timeoutId2);
+    };
+  }, [graphData]); // Re-run when graphData changes
+
   // D3 force graph
   useEffect(() => {
-    if (!graphData || !svgRef.current) return;
+    if (!graphData || !svgRef.current) {
+      console.log("Skipping graph render due to missing graph data or SVG ref");
+      return;
+    }
+    
+    if (dimensions.width <= 0 || dimensions.height <= 0) {
+      console.log("Skipping graph render due to invalid dimensions:", dimensions);
+      return;
+    }
+    
+    console.log("Rendering graph with dimensions:", dimensions);
 
     const { nodes, links } = getFilteredData();
     if (nodes.length === 0) return;
 
-    // Clear previous graph
-    d3.select(svgRef.current).selectAll("*").remove();
+    const width = dimensions.width;
+    const height = dimensions.height;
 
-    const width = 800;
-    const height = 600;
+    // Clear previous graph
+    const svgElement = svgRef.current;
+    d3.select(svgElement).selectAll("*").remove();
+    
+    // Set explicit dimensions on the SVG element
+    svgElement.setAttribute('width', `${width}px`);
+    svgElement.setAttribute('height', `${height}px`);
 
     // Create SVG
     const svg = d3
       .select(svgRef.current)
       .attr("width", width)
       .attr("height", height)
-      .attr("viewBox", [0, 0, width, height]);
+      .attr("viewBox", [0, 0, width, height])
+      .html(""); // Clear any existing content
 
     // Add zoom functionality
     const g = svg.append("g");
@@ -477,7 +528,7 @@ const KnowledgeGraphVisualization = () => {
     return () => {
       simulation.stop();
     };
-  }, [graphData, searchTerm, filterEntityType, filterRelationType]);
+  }, [graphData, searchTerm, filterEntityType, filterRelationType, dimensions]);
 
   // Helper function to get relation counts
   const getRelationCounts = (nodeName) => {
@@ -713,13 +764,14 @@ const KnowledgeGraphVisualization = () => {
             </div>
           </div>
 
-          <div className="flex flex-1 overflow-hidden">
-            <div className="flex-1 overflow-auto">
+          <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 180px)', minHeight: '500px' }} ref={containerRef}>
+            <div className="flex-1 overflow-hidden relative" style={{ height: '100%', width: '100%' }}>
               <svg
                 ref={svgRef}
                 width="100%"
                 height="100%"
-                className="bg-white"
+                className="bg-white absolute top-0 left-0"
+                style={{ minHeight: '500px' }}
               ></svg>
             </div>
 
