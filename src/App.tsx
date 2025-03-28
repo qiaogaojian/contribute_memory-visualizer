@@ -1,4 +1,3 @@
-import React from "react";
 import KnowledgeGraphVisualization from "./components/KnowledgeGraphVisualization";
 
 function App() {

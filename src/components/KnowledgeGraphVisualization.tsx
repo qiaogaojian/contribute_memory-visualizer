@@ -1,36 +1,78 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import * as d3 from "d3";
 
+// Define types for our data structures
+interface Entity {
+  name: string;
+  entityType: string;
+  observations: string[];
+  type: string;
+}
+
+interface Relation {
+  from: string;
+  to: string;
+  relationType: string;
+  type: string;
+}
+
+interface GraphData {
+  entities: Entity[];
+  relations: Relation[];
+}
+
+interface Stats {
+  entityCount: number;
+  relationCount: number;
+  entityTypeCount: number;
+  relationTypeCount: number;
+}
+
+interface Node extends d3.SimulationNodeDatum {
+  id: string;
+  name: string;
+  entityType: string;
+  observations: string[];
+  x?: number;
+  y?: number;
+}
+
+interface Link {
+  source: Node;
+  target: Node;
+  type: string;
+}
+
 const KnowledgeGraphVisualization = () => {
-  const svgRef = useRef(null);
-  const [graphData, setGraphData] = useState(null);
-  const [selectedNode, setSelectedNode] = useState(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [graphData, setGraphData] = useState<GraphData | null>(null);
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEntityType, setFilterEntityType] = useState("All");
   const [filterRelationType, setFilterRelationType] = useState("All");
   const [isDragging, setIsDragging] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState<Stats | null>(null);
 
   // Function to parse the JSON file
-  const parseMemoryJson = (content) => {
+  const parseMemoryJson = (content: string) => {
     try {
       setIsLoading(true);
       // Split the content by new lines
       const lines = content.split("\n").filter((line) => line.trim());
 
-      const entities = [];
-      const relations = [];
+      const entities: Entity[] = [];
+      const relations: Relation[] = [];
 
       // Parse each line as a separate JSON object
       lines.forEach((line) => {
         try {
           const obj = JSON.parse(line);
           if (obj.type === "entity") {
-            entities.push(obj);
+            entities.push(obj as Entity);
           } else if (obj.type === "relation") {
-            relations.push(obj);
+            relations.push(obj as Relation);
           }
         } catch (err) {
           console.error("Error parsing line:", line, err);
@@ -62,14 +104,16 @@ const KnowledgeGraphVisualization = () => {
   };
 
   // Handle file selection
-  const handleFileSelect = (event) => {
-    const file = event.target.files[0];
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file) {
       setErrorMessage("");
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target.result;
-        parseMemoryJson(content);
+      reader.onload = (e: ProgressEvent<FileReader>) => {
+        const content = e.target?.result;
+        if (typeof content === 'string') {
+          parseMemoryJson(content);
+        }
       };
       reader.onerror = () => {
         setErrorMessage("Error reading file. Please try again.");
@@ -79,7 +123,7 @@ const KnowledgeGraphVisualization = () => {
   };
 
   // Handle drag events
-  const handleDragOver = (e) => {
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(true);
   };
@@ -88,7 +132,7 @@ const KnowledgeGraphVisualization = () => {
     setIsDragging(false);
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
     setErrorMessage("");
@@ -103,9 +147,11 @@ const KnowledgeGraphVisualization = () => {
       }
 
       const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target.result;
-        parseMemoryJson(content);
+      reader.onload = (e: ProgressEvent<FileReader>) => {
+        const content = e.target?.result;
+        if (typeof content === 'string') {
+          parseMemoryJson(content);
+        }
       };
       reader.onerror = () => {
         setErrorMessage("Error reading file. Please try again.");
@@ -115,12 +161,14 @@ const KnowledgeGraphVisualization = () => {
   };
 
   // Handle paste from clipboard
-  const handlePaste = useCallback((e) => {
-    const clipboardData = e.clipboardData || window.clipboardData;
-    const pastedText = clipboardData.getData("Text");
-    if (pastedText) {
-      setErrorMessage("");
-      parseMemoryJson(pastedText);
+  const handlePaste = useCallback((e: ClipboardEvent) => {
+    const clipboardData = e.clipboardData;
+    if (clipboardData) {
+      const pastedText = clipboardData.getData("Text");
+      if (pastedText) {
+        setErrorMessage("");
+        parseMemoryJson(pastedText);
+      }
     }
   }, []);
 
@@ -148,7 +196,7 @@ const KnowledgeGraphVisualization = () => {
 
   // Apply filters to the graph data
   const getFilteredData = () => {
-    if (!graphData) return { nodes: [], links: [] };
+    if (!graphData) return { nodes: [] as Node[], links: [] as Link[] };
 
     // Filter entities based on search term and entity type
     let filteredEntities = graphData.entities;
@@ -185,19 +233,41 @@ const KnowledgeGraphVisualization = () => {
     }
 
     // Create nodes from filtered entities
-    const nodes = filteredEntities.map((entity) => ({
+    const nodes: Node[] = filteredEntities.map((entity) => ({
       id: entity.name,
       name: entity.name,
       entityType: entity.entityType,
       observations: entity.observations,
+      // Add these properties to satisfy SimulationNodeDatum
+      index: undefined,
+      x: undefined,
+      y: undefined,
+      vx: undefined,
+      vy: undefined,
+      fx: undefined,
+      fy: undefined
     }));
 
-    // Create links from filtered relations
-    const links = filteredRelations.map((relation) => ({
-      source: relation.from,
-      target: relation.to,
-      type: relation.relationType,
-    }));
+    // Create links from filtered relations with proper typing
+    const links: Link[] = [];
+    
+    // First create all nodes to ensure they exist
+    const nodeMap = new Map<string, Node>();
+    nodes.forEach(node => nodeMap.set(node.id, node));
+    
+    // Then create links with proper source and target references
+    filteredRelations.forEach(relation => {
+      const source = nodeMap.get(relation.from);
+      const target = nodeMap.get(relation.to);
+      
+      if (source && target) {
+        links.push({
+          source,
+          target,
+          type: relation.relationType
+        });
+      }
+    });
 
     return { nodes, links };
   };
@@ -227,7 +297,7 @@ const KnowledgeGraphVisualization = () => {
 
     svg.call(
       d3
-        .zoom()
+        .zoom<SVGSVGElement, unknown>()
         .extent([
           [0, 0],
           [width, height],
@@ -258,18 +328,18 @@ const KnowledgeGraphVisualization = () => {
 
     // Create the force simulation
     const simulation = d3
-      .forceSimulation(nodes)
+      .forceSimulation<Node>(nodes)
       .force(
         "link",
         d3
-          .forceLink(links)
+          .forceLink<Node, Link>(links)
           .id((d) => d.id)
           .distance(150)
       )
-      .force("charge", d3.forceManyBody().strength(-500))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("x", d3.forceX())
-      .force("y", d3.forceY());
+      .force("charge", d3.forceManyBody<Node>().strength(-500))
+      .force("center", d3.forceCenter<Node>(width / 2, height / 2))
+      .force("x", d3.forceX<Node>())
+      .force("y", d3.forceY<Node>());
 
     // Create the links
     const link = g
@@ -301,7 +371,7 @@ const KnowledgeGraphVisualization = () => {
       .data(nodes)
       .join("g")
       .attr("class", "node")
-      .call(drag(simulation))
+      .call(drag(simulation) as any) // Type assertion needed for D3 drag
       .on("click", (event, d) => {
         setSelectedNode(d);
         event.stopPropagation();
@@ -313,7 +383,7 @@ const KnowledgeGraphVisualization = () => {
       .attr("r", 10)
       .attr("fill", (d) => {
         // Generate a color based on entity type
-        const typeColors = {
+        const typeColors: Record<string, string> = {
           Memory: "#ff8c00",
           Research: "#9370db",
           System: "#3cb371",
@@ -346,6 +416,9 @@ const KnowledgeGraphVisualization = () => {
     // Update positions on simulation tick
     simulation.on("tick", () => {
       link.attr("d", (d) => {
+        if (d.source.x === undefined || d.source.y === undefined || 
+            d.target.x === undefined || d.target.y === undefined) return "";
+            
         const dx = d.target.x - d.source.x;
         const dy = d.target.y - d.source.y;
         const dr = Math.sqrt(dx * dx + dy * dy);
@@ -353,6 +426,9 @@ const KnowledgeGraphVisualization = () => {
       });
 
       linkText.attr("transform", (d) => {
+        if (d.source.x === undefined || d.source.y === undefined || 
+            d.target.x === undefined || d.target.y === undefined) return "";
+            
         const dx = d.target.x - d.source.x;
         const dy = d.target.y - d.source.y;
         const x = (d.source.x + d.target.x) / 2;
@@ -361,30 +437,33 @@ const KnowledgeGraphVisualization = () => {
         return `translate(${x},${y}) rotate(${angle})`;
       });
 
-      node.attr("transform", (d) => `translate(${d.x},${d.y})`);
+      node.attr("transform", (d) => {
+        if (d.x === undefined || d.y === undefined) return "";
+        return `translate(${d.x},${d.y})`;
+      });
     });
 
     // Drag functionality
-    function drag(simulation) {
-      function dragstarted(event) {
+    function drag(simulation: d3.Simulation<Node, undefined>) {
+      function dragstarted(event: d3.D3DragEvent<Element, Node, Node>) {
         if (!event.active) simulation.alphaTarget(0.3).restart();
         event.subject.fx = event.subject.x;
         event.subject.fy = event.subject.y;
       }
 
-      function dragged(event) {
+      function dragged(event: d3.D3DragEvent<Element, Node, Node>) {
         event.subject.fx = event.x;
         event.subject.fy = event.y;
       }
 
-      function dragended(event) {
+      function dragended(event: d3.D3DragEvent<Element, Node, Node>) {
         if (!event.active) simulation.alphaTarget(0);
         event.subject.fx = null;
         event.subject.fy = null;
       }
 
       return d3
-        .drag()
+        .drag<Element, Node>()
         .on("start", dragstarted)
         .on("drag", dragged)
         .on("end", dragended);
@@ -698,10 +777,26 @@ const KnowledgeGraphVisualization = () => {
                                 →{" "}
                                 <button
                                   onClick={() => {
-                                    const targetNode = graphData.entities.find(
+                                    const targetEntity = graphData.entities.find(
                                       (e) => e.name === r.to
                                     );
-                                    if (targetNode) setSelectedNode(targetNode);
+                                    if (targetEntity) {
+                                      // Convert Entity to Node
+                                      const targetNode: Node = {
+                                        id: targetEntity.name,
+                                        name: targetEntity.name,
+                                        entityType: targetEntity.entityType,
+                                        observations: targetEntity.observations,
+                                        index: undefined,
+                                        x: undefined,
+                                        y: undefined,
+                                        vx: undefined,
+                                        vy: undefined,
+                                        fx: undefined,
+                                        fy: undefined
+                                      };
+                                      setSelectedNode(targetNode);
+                                    }
                                   }}
                                   className="text-blue-600 hover:underline"
                                 >
@@ -725,10 +820,26 @@ const KnowledgeGraphVisualization = () => {
                               <li key={i} className="text-sm mb-1">
                                 <button
                                   onClick={() => {
-                                    const sourceNode = graphData.entities.find(
+                                    const sourceEntity = graphData.entities.find(
                                       (e) => e.name === r.from
                                     );
-                                    if (sourceNode) setSelectedNode(sourceNode);
+                                    if (sourceEntity) {
+                                      // Convert Entity to Node
+                                      const sourceNode: Node = {
+                                        id: sourceEntity.name,
+                                        name: sourceEntity.name,
+                                        entityType: sourceEntity.entityType,
+                                        observations: sourceEntity.observations,
+                                        index: undefined,
+                                        x: undefined,
+                                        y: undefined,
+                                        vx: undefined,
+                                        vy: undefined,
+                                        fx: undefined,
+                                        fy: undefined
+                                      };
+                                      setSelectedNode(sourceNode);
+                                    }
                                   }}
                                   className="text-blue-600 hover:underline"
                                 >
