@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useReducer,
   useState,
   useRef,
   useCallback,
@@ -49,12 +50,81 @@ interface Link {
   type: string;
 }
 
+// History state for node selection and navigation
+type HistoryState = {
+  history: Node[];
+  index: number;
+  selectedNode: Node | null;
+};
+type HistoryAction =
+  | { type: 'select'; node: Node }
+  | { type: 'back' }
+  | { type: 'forward' }
+  | { type: 'clear' }
+  | { type: 'reset' };
+function historyReducer(
+  state: HistoryState,
+  action: HistoryAction
+): HistoryState {
+  switch (action.type) {
+    case 'select': {
+      const newHistory = state.history.slice(0, state.index + 1);
+      newHistory.push(action.node);
+      return {
+        history: newHistory,
+        index: newHistory.length - 1,
+        selectedNode: action.node,
+      };
+    }
+    case 'back': {
+      if (state.index > 0) {
+        const newIndex = state.index - 1;
+        return {
+          ...state,
+          index: newIndex,
+          selectedNode: state.history[newIndex],
+        };
+      }
+      return state;
+    }
+    case 'forward': {
+      if (state.index < state.history.length - 1) {
+        const newIndex = state.index + 1;
+        return {
+          ...state,
+          index: newIndex,
+          selectedNode: state.history[newIndex],
+        };
+      }
+      return state;
+    }
+    case 'clear': {
+      return { ...state, selectedNode: null };
+    }
+    case 'reset': {
+      return { history: [], index: -1, selectedNode: null };
+    }
+    default:
+      return state;
+  }
+}
+
 const KnowledgeGraphVisualization = () => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [graphData, setGraphData] = useState<GraphData | null>(null);
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  // History and navigation for selected nodes
+  const [historyState, dispatchHistory] = useReducer(
+    historyReducer,
+    { history: [], index: -1, selectedNode: null } as HistoryState
+  );
+  const { history, index, selectedNode } = historyState;
+  // Refs to manage D3 nodes and zoom behavior for recentering
+  const nodesRef = useRef<Node[]>([]);
+  const nodeMapRef = useRef<Map<string, Node>>(new Map());
+  const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
+  const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEntityType, setFilterEntityType] = useState("All");
   const [filterRelationType, setFilterRelationType] = useState("All");
@@ -331,6 +401,9 @@ const KnowledgeGraphVisualization = () => {
     console.log("Rendering graph with dimensions:", dimensions);
 
     const { nodes, links } = getFilteredData();
+    // Store nodes and lookup map for navigation and recentering
+    nodesRef.current = nodes;
+    nodeMapRef.current = new Map(nodes.map((node) => [node.id, node]));
     if (nodes.length === 0) return;
 
     const width = dimensions.width;
@@ -352,21 +425,21 @@ const KnowledgeGraphVisualization = () => {
       .attr("viewBox", [0, 0, width, height])
       .html(""); // Clear any existing content
 
-    // Add zoom functionality
+    // Add zoom functionality with controllable behavior
     const g = svg.append("g");
-
-    svg.call(
-      d3
-        .zoom<SVGSVGElement, unknown>()
-        .extent([
-          [0, 0],
-          [width, height],
-        ])
-        .scaleExtent([0.1, 8])
-        .on("zoom", (event) => {
-          g.attr("transform", event.transform);
-        })
-    );
+    const zoomBehavior = d3
+      .zoom<SVGSVGElement, unknown>()
+      .extent([
+        [0, 0],
+        [width, height],
+      ])
+      .scaleExtent([0.1, 8])
+      .on("zoom", (event) => {
+        g.attr("transform", event.transform);
+        transformRef.current = event.transform;
+      });
+    zoomBehaviorRef.current = zoomBehavior;
+    svg.call(zoomBehavior as any);
 
     // Arrow markers for the links
     svg
@@ -433,7 +506,8 @@ const KnowledgeGraphVisualization = () => {
       .attr("class", "node")
       .call(drag(simulation) as any) // Type assertion needed for D3 drag
       .on("click", (event, d) => {
-        setSelectedNode(d);
+        // Select node and record history
+        dispatchHistory({ type: 'select', node: d });
         event.stopPropagation();
       });
 
@@ -541,13 +615,35 @@ const KnowledgeGraphVisualization = () => {
 
     // Click outside to deselect node
     svg.on("click", () => {
-      setSelectedNode(null);
+      dispatchHistory({ type: 'clear' });
     });
 
     return () => {
       simulation.stop();
     };
   }, [graphData, searchTerm, filterEntityType, filterRelationType, dimensions]);
+  
+  // Recenter graph when a node is selected
+  useEffect(() => {
+    if (!selectedNode || !svgRef.current) return;
+    const zoomBehavior = zoomBehaviorRef.current;
+    if (!zoomBehavior) return;
+    const { x, y } = selectedNode;
+    if (x === undefined || y === undefined) return;
+    const k = transformRef.current.k;
+    const width = dimensions.width;
+    const height = dimensions.height;
+    const newX = width / 2 - x * k;
+    const newY = height / 2 - y * k;
+    const svgSel = d3.select(svgRef.current);
+    svgSel
+      .transition()
+      .duration(750)
+      .call(
+        zoomBehavior.transform as any,
+        d3.zoomIdentity.translate(newX, newY).scale(k)
+      );
+  }, [selectedNode, dimensions]);
 
   // Helper function to get relation counts
   const getRelationCounts = (nodeName) => {
@@ -564,7 +660,8 @@ const KnowledgeGraphVisualization = () => {
   // Reset the visualization
   const resetVisualization = () => {
     setGraphData(null);
-    setSelectedNode(null);
+    // Reset history and selection
+    dispatchHistory({ type: 'reset' });
     setSearchTerm("");
     setFilterEntityType("All");
     setFilterRelationType("All");
@@ -775,13 +872,35 @@ const KnowledgeGraphVisualization = () => {
         <div className="flex flex-col h-screen">
           <div className="bg-white p-4 border-b border-gray-300 shadow-sm">
             <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center">
-                <svg 
-                  className="w-8 h-8 mr-2 text-purple-700" 
-                  xmlns="http://www.w3.org/2000/svg" 
+              <div className="flex items-center space-x-2">
+                {/* Back/Forward navigation */}
+                <button
+                  onClick={() => dispatchHistory({ type: 'back' })}
+                  disabled={index <= 0}
+                  className="p-1 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 rounded"
+                >
+                  &larr;
+                </button>
+                <button
+                  onClick={() => dispatchHistory({ type: 'forward' })}
+                  disabled={index >= history.length - 1}
+                  className="p-1 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 rounded"
+                >
+                  &rarr;
+                </button>
+                <svg
+                  className="w-8 h-8 text-purple-700"
+                  xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
                 >
-                  <path fill="none" stroke="#9370db" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"/>
+                  <path
+                    fill="none"
+                    stroke="#9370db"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M6 19a2 2 0 0 1-2-2v-4l-1-1l1-1V7a2 2 0 0 1 2-2m6 6.875l3-1.687m-3 1.687v3.375m0-3.375l-3-1.687m3 1.687l3 1.688M12 8.5v3.375m0 0l-3 1.688M18 19a2 2 0 0 0 2-2v-4l1-1l-1-1V7a2 2 0 0 0-2-2"
+                  />
                 </svg>
                 <h1 className="text-xl font-bold">
                   Anthropic Memory MCP Visualizer
@@ -972,26 +1091,10 @@ const KnowledgeGraphVisualization = () => {
                                 →{" "}
                                 <button
                                   onClick={() => {
-                                    const targetEntity =
-                                      graphData.entities.find(
-                                        (e) => e.name === r.to
-                                      );
-                                    if (targetEntity) {
-                                      // Convert Entity to Node
-                                      const targetNode: Node = {
-                                        id: targetEntity.name,
-                                        name: targetEntity.name,
-                                        entityType: targetEntity.entityType,
-                                        observations: targetEntity.observations,
-                                        index: undefined,
-                                        x: undefined,
-                                        y: undefined,
-                                        vx: undefined,
-                                        vy: undefined,
-                                        fx: undefined,
-                                        fy: undefined,
-                                      };
-                                      setSelectedNode(targetNode);
+                                    // Navigate to outbound node
+                                    const node = nodeMapRef.current.get(r.to);
+                                    if (node) {
+                                      dispatchHistory({ type: 'select', node });
                                     }
                                   }}
                                   className="text-blue-600 hover:underline"
@@ -1016,26 +1119,10 @@ const KnowledgeGraphVisualization = () => {
                               <li key={i} className="text-sm mb-1">
                                 <button
                                   onClick={() => {
-                                    const sourceEntity =
-                                      graphData.entities.find(
-                                        (e) => e.name === r.from
-                                      );
-                                    if (sourceEntity) {
-                                      // Convert Entity to Node
-                                      const sourceNode: Node = {
-                                        id: sourceEntity.name,
-                                        name: sourceEntity.name,
-                                        entityType: sourceEntity.entityType,
-                                        observations: sourceEntity.observations,
-                                        index: undefined,
-                                        x: undefined,
-                                        y: undefined,
-                                        vx: undefined,
-                                        vy: undefined,
-                                        fx: undefined,
-                                        fy: undefined,
-                                      };
-                                      setSelectedNode(sourceNode);
+                                    // Navigate to inbound node
+                                    const node = nodeMapRef.current.get(r.from);
+                                    if (node) {
+                                      dispatchHistory({ type: 'select', node });
                                     }
                                   }}
                                   className="text-blue-600 hover:underline"
