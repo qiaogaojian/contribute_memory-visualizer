@@ -42,6 +42,7 @@ interface Node extends d3.SimulationNodeDatum {
   observations: string[];
   x?: number;
   y?: number;
+  degree?: number;
 }
 
 interface Link {
@@ -441,23 +442,40 @@ const KnowledgeGraphVisualization = () => {
     zoomBehaviorRef.current = zoomBehavior;
     svg.call(zoomBehavior as any);
 
-    // Arrow markers for the links
+    // Arrow marker for the links
     svg
       .append("defs")
-      .selectAll("marker")
-      .data(["end"])
-      .enter()
       .append("marker")
-      .attr("id", (d) => d)
+      .attr("id", "arrowhead")
       .attr("viewBox", "0 -5 10 10")
-      .attr("refX", 25)
+      .attr("refX", 10) // Path tip is at x=10, so refX=10 makes tip align with line end
       .attr("refY", 0)
-      .attr("markerWidth", 6)
+      .attr("markerWidth", 6) // Adjust size as needed
       .attr("markerHeight", 6)
       .attr("orient", "auto")
       .append("path")
       .attr("fill", "#999")
-      .attr("d", "M0,-5L10,0L0,5");
+      .attr("d", "M0,-5L10,0L0,5"); // Standard arrow path
+
+    // Calculate node degrees and add to nodes
+    const nodeDegrees = new Map<string, number>();
+    nodes.forEach(node => {
+      const { inbound, outbound } = getRelationCounts(node.id);
+      node.degree = inbound + outbound;
+      nodeDegrees.set(node.name, node.degree);
+    });
+
+    // Create scales for node size and color based on degree
+    const maxDegree = Math.max(...nodes.map(d => d.degree || 0));
+    const minDegree = Math.min(...nodes.map(d => d.degree || 0));
+    
+    const sizeScale = d3.scaleLinear()
+      .domain([minDegree, maxDegree])
+      .range([6, 20]); // Node radius range
+    
+    const colorScale = d3.scaleLinear()
+      .domain([minDegree, maxDegree])
+      .range([0.3, 1.0]); // Color intensity range
 
     // Create the force simulation with improved spacing
     const simulation = d3
@@ -473,7 +491,7 @@ const KnowledgeGraphVisualization = () => {
       .force("center", d3.forceCenter<Node>(width / 2, height / 2))
       .force("x", d3.forceX<Node>())
       .force("y", d3.forceY<Node>())
-      .force("collision", d3.forceCollide<Node>().radius(35)); // Add collision detection
+      .force("collision", d3.forceCollide<Node>().radius((d) => sizeScale(d.degree) + 5)); // Dynamic collision detection
 
     // Create the links
     const link = g
@@ -483,7 +501,8 @@ const KnowledgeGraphVisualization = () => {
       .selectAll("path")
       .data(links)
       .join("path")
-      .attr("marker-end", "url(#end)")
+      .attr("marker-end", "url(#arrowhead)") // Use the single defined arrowhead
+
       .attr("fill", "none");
 
     // Add link labels with collision avoidance
@@ -520,35 +539,39 @@ const KnowledgeGraphVisualization = () => {
         event.stopPropagation();
       });
 
-    // Add circles to nodes
+    // Add circles to nodes with dynamic size and color
     node
       .append("circle")
-      .attr("r", 10)
+      .attr("r", (d) => sizeScale(d.degree))
       .attr("fill", (d) => {
-        // Generate a color based on entity type
-        const typeColors: Record<string, string> = {
-          Memory: "#ff8c00",
-          Research: "#9370db",
-          System: "#3cb371",
-          FileCategories: "#4682b4",
-          ScanRecord: "#cd5c5c",
-          FileGroup: "#20b2aa",
-          ActionPlan: "#ff6347",
-          PatternLibrary: "#9acd32",
-          UserPreference: "#ff69b4",
-          Project: "#1e90ff",
-          Use_Case: "#ff7f50",
-          Strategy: "#8a2be2",
-        };
-        return typeColors[d.entityType] || "#ccc";
+        // Generate a color based on entity type with dynamic intensity
+        // const typeColors: Record<string, string> = {
+        //   Memory: "#ff8c00",
+        //   Research: "#9370db",
+        //   System: "#3cb371",
+        //   FileCategories: "#4682b4",
+        //   ScanRecord: "#cd5c5c",
+        //   FileGroup: "#20b2aa",
+        //   ActionPlan: "#ff6347",
+        //   PatternLibrary: "#9acd32",
+        //   UserPreference: "#ff69b4",
+        //   Project: "#1e90ff",
+        //   Use_Case: "#ff7f50",
+        //   Strategy: "#8a2be2",
+        // };
+        // const baseColor = typeColors[d.entityType] || "#ccc";
+        // const intensity = colorScale(d.degree);
+        // Interpolate between white and the base color based on intensity
+        // return d3.interpolate("#ffffff", baseColor)(intensity);
+        return d.degree > 0 ? "#4593c3" : "#e27171";
       })
       .attr("stroke", "#fff")
       .attr("stroke-width", 1.5);
 
-    // Add labels to nodes with better positioning
+    // Add labels to nodes with dynamic positioning based on node size
     node
       .append("text")
-      .attr("dx", 18)
+      .attr("dx", (d) => sizeScale(d.degree) + 8) // Position text outside the node radius
       .attr("dy", ".35em")
       .text((d) => d.name)
       .attr("font-size", 11)
@@ -574,7 +597,22 @@ const KnowledgeGraphVisualization = () => {
         const dx = d.target.x - d.source.x;
         const dy = d.target.y - d.source.y;
         const dr = Math.sqrt(dx * dx + dy * dy);
-        return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+        
+        // Calculate source and target node radii
+        const sourceRadius = sizeScale(nodeDegrees.get(d.source.name) || 0);
+        const targetRadius = sizeScale(nodeDegrees.get(d.target.name) || 0);
+        
+        // Calculate unit vector from source to target
+        const unitX = dx / dr;
+        const unitY = dy / dr;
+        
+        // Calculate start and end points at node edges
+        const startX = d.source.x + unitX * sourceRadius;
+        const startY = d.source.y + unitY * sourceRadius;
+        const endX = d.target.x - unitX * targetRadius;
+        const endY = d.target.y - unitY * targetRadius;
+        
+        return `M${startX},${startY}L${endX},${endY}`;
       });
 
       linkText.attr("transform", (d) => {
