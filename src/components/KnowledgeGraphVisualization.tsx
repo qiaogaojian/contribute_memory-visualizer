@@ -459,7 +459,7 @@ const KnowledgeGraphVisualization = () => {
       .attr("fill", "#999")
       .attr("d", "M0,-5L10,0L0,5");
 
-    // Create the force simulation
+    // Create the force simulation with improved spacing
     const simulation = d3
       .forceSimulation<Node>(nodes)
       .force(
@@ -467,12 +467,13 @@ const KnowledgeGraphVisualization = () => {
         d3
           .forceLink<Node, Link>(links)
           .id((d) => d.id)
-          .distance(150)
+          .distance(180) // Increased distance to reduce overlap
       )
-      .force("charge", d3.forceManyBody<Node>().strength(-500))
+      .force("charge", d3.forceManyBody<Node>().strength(-800)) // Stronger repulsion
       .force("center", d3.forceCenter<Node>(width / 2, height / 2))
       .force("x", d3.forceX<Node>())
-      .force("y", d3.forceY<Node>());
+      .force("y", d3.forceY<Node>())
+      .force("collision", d3.forceCollide<Node>().radius(35)); // Add collision detection
 
     // Create the links
     const link = g
@@ -485,7 +486,7 @@ const KnowledgeGraphVisualization = () => {
       .attr("marker-end", "url(#end)")
       .attr("fill", "none");
 
-    // Add link labels
+    // Add link labels with collision avoidance
     const linkText = g
       .append("g")
       .selectAll("text")
@@ -494,8 +495,16 @@ const KnowledgeGraphVisualization = () => {
       .text((d) => d.type)
       .attr("font-size", 10)
       .attr("text-anchor", "middle")
-      .attr("dy", -5)
-      .attr("fill", "#666");
+      .attr("dy", (d, i) => {
+        // Stagger text positions to reduce overlap with smaller offsets
+        // Alternate between above and below the line with reduced distance
+        const baseOffset = i % 2 === 0 ? -4 : 6;
+        // Add smaller random offset to reduce collisions while staying close to line
+        const randomOffset = (i % 3 - 1) * 1;
+        return baseOffset + randomOffset;
+      })
+      .attr("fill", "#666")
+      .attr("opacity", 0.8);
 
     // Create a group for each node
     const node = g
@@ -536,13 +545,17 @@ const KnowledgeGraphVisualization = () => {
       .attr("stroke", "#fff")
       .attr("stroke-width", 1.5);
 
-    // Add labels to nodes
+    // Add labels to nodes with better positioning
     node
       .append("text")
-      .attr("dx", 15)
+      .attr("dx", 18)
       .attr("dy", ".35em")
       .text((d) => d.name)
-      .attr("font-size", 12);
+      .attr("font-size", 11)
+      .attr("fill", "#333")
+      .attr("font-weight", "500")
+      .style("pointer-events", "none")
+      .style("text-shadow", "1px 1px 2px rgba(255,255,255,0.8)");
 
     // Add titles for hover
     node.append("title").text((d) => `${d.name} (${d.entityType})`);
