@@ -133,6 +133,67 @@ const KnowledgeGraphVisualization = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingNodeData, setEditingNodeData] = useState<Node | null>(null);
+
+  // Handle saving edited node data
+  const handleSaveNode = () => {
+    if (!editingNodeData || !graphData || !selectedNode) {
+      console.log('Save cancelled: missing data', { editingNodeData, graphData, selectedNode });
+      return;
+    }
+
+    console.log('Starting save process...');
+    const originalName = selectedNode.name;
+    const newName = editingNodeData.name;
+
+    // Update the entity in graphData
+    const updatedEntities = graphData.entities.map(entity => {
+      if (entity.name === originalName) {
+        return {
+          ...entity,
+          name: newName,
+          entityType: editingNodeData.entityType,
+          observations: editingNodeData.observations
+        };
+      }
+      return entity;
+    });
+
+    // Update relations if entity name changed
+    const updatedRelations = graphData.relations.map(relation => {
+      let updatedRelation = { ...relation };
+      if (relation.from === originalName) {
+        updatedRelation.from = newName;
+      }
+      if (relation.to === originalName) {
+        updatedRelation.to = newName;
+      }
+      return updatedRelation;
+    });
+
+    // Update graphData
+    setGraphData({
+      entities: updatedEntities,
+      relations: updatedRelations
+    });
+
+    // Update stats
+    setStats({
+      entityCount: updatedEntities.length,
+      relationCount: updatedRelations.length,
+      entityTypeCount: new Set(updatedEntities.map((e) => e.entityType)).size,
+      relationTypeCount: new Set(updatedRelations.map((r) => r.relationType)).size,
+    });
+
+    // Update selected node with new data using dispatch
+    dispatchHistory({ type: 'select', node: editingNodeData });
+
+    // Exit editing mode
+    console.log('Exiting editing mode...');
+    setIsEditing(false);
+    setEditingNodeData(null);
+  };
 
   // Function to parse the JSON file
   const parseMemoryJson = (content: string) => {
@@ -515,12 +576,8 @@ const KnowledgeGraphVisualization = () => {
       .attr("font-size", 10)
       .attr("text-anchor", "middle")
       .attr("dy", (d, i) => {
-        // Stagger text positions to reduce overlap with smaller offsets
-        // Alternate between above and below the line with reduced distance
-        const baseOffset = i % 2 === 0 ? -4 : 6;
-        // Add smaller random offset to reduce collisions while staying close to line
-        const randomOffset = (i % 3 - 1) * 1;
-        return baseOffset + randomOffset;
+        // Alternate between above and below the line for better separation
+        return i % 2 === 0 ? -5 : 8; 
       })
       .attr("fill", "#666")
       .attr("opacity", 0.8);
@@ -626,8 +683,9 @@ const KnowledgeGraphVisualization = () => {
 
         const dx = d.target.x - d.source.x;
         const dy = d.target.y - d.source.y;
-        const x = (d.source.x + d.target.x) / 2;
-        const y = (d.source.y + d.target.y) / 2;
+        // Position text closer to the target node (75% along the link)
+        const x = d.source.x + dx * 0.7;
+        const y = d.source.y + dy * 0.7;
         let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
         
         // Prevent text from being upside down by adjusting angle
@@ -1075,6 +1133,11 @@ const KnowledgeGraphVisualization = () => {
             </div>
 
             {selectedNode && (
+              <>
+                {/* Edit and Delete Buttons Placeholder */}
+              </>
+            )}
+            {selectedNode && (
               <div className="w-1/3 p-4 bg-purple-50 border-l border-purple-200 overflow-y-auto">
                 <div className="flex items-center mb-3">
                   <svg 
@@ -1086,118 +1149,199 @@ const KnowledgeGraphVisualization = () => {
                   </svg>
                   <span className="text-sm font-medium text-purple-600">Entity Details</span>
                 </div>
-                <h2 className="text-lg font-bold mb-2">{selectedNode.name}</h2>
-                <p className="text-sm text-gray-600 mb-4">
-                  Type: {selectedNode.entityType}
-                </p>
-
-                {selectedNode.observations && (
-                  <>
-                    <h3 className="font-bold text-purple-800 mb-2 flex items-center">
-                      <svg
-                        className="w-4 h-4 mr-1"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z"
-                          fill="currentColor"
-                        />
-                      </svg>
-                      Observations:
-                    </h3>
-                    <ul className="list-disc pl-5 mb-4">
-                      {selectedNode.observations.map((obs, i) => (
-                        <li key={i} className="text-sm mb-1">
-                          {obs}
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-
-                {graphData && (
-                  <>
-                    <h3 className="font-bold text-gray-700 mb-2">Relations:</h3>
-                    <div className="mb-2">
-                      <p className="text-sm">
-                        <span className="font-medium">Connections:</span>{" "}
-                        {getRelationCounts(selectedNode.name).inbound +
-                          getRelationCounts(selectedNode.name).outbound}
-                        &nbsp;({getRelationCounts(selectedNode.name).inbound}{" "}
-                        inbound, {getRelationCounts(selectedNode.name).outbound}{" "}
-                        outbound)
-                      </p>
+                {isEditing && editingNodeData ? (
+                  // Edit Mode
+                  <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
+                    <div>
+                      <label htmlFor="nodeNameField" className="block text-sm font-medium text-gray-700">名称:</label>
+                      <input
+                        type="text"
+                        id="nodeNameField"
+                        value={editingNodeData.name}
+                        onChange={(e) => setEditingNodeData({ ...editingNodeData, name: e.target.value })}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      />
                     </div>
-
-                    {graphData.relations.filter(
-                      (r) => r.from === selectedNode.name
-                    ).length > 0 && (
-                      <div className="mb-3">
-                        <h4 className="text-sm font-semibold mb-1">
-                          Outbound:
-                        </h4>
-                        <ul className="list-disc pl-5">
-                          {graphData.relations
-                            .filter((r) => r.from === selectedNode.name)
-                            .map((r, i) => (
-                              <li key={i} className="text-sm mb-1">
-                                <span className="italic text-blue-600">
-                                  {r.relationType}
-                                </span>{" "}
-                                →{" "}
-                                <button
-                                  onClick={() => {
-                                    // Navigate to outbound node
-                                    const node = nodeMapRef.current.get(r.to);
-                                    if (node) {
-                                      dispatchHistory({ type: 'select', node });
-                                    }
-                                  }}
-                                  className="text-blue-600 hover:underline"
-                                >
-                                  {r.to}
-                                </button>
-                              </li>
-                            ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {graphData.relations.filter(
-                      (r) => r.to === selectedNode.name
-                    ).length > 0 && (
+                    <div>
+                      <label htmlFor="nodeEntityType" className="block text-sm font-medium text-gray-700">实体类型:</label>
+                      <input
+                        type="text"
+                        id="nodeEntityType"
+                        value={editingNodeData.entityType}
+                        onChange={(e) => setEditingNodeData({ ...editingNodeData, entityType: e.target.value })}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="nodeObservations" className="block text-sm font-medium text-gray-700">观察结果 (每行一个):</label>
+                      <textarea
+                        id="nodeObservations"
+                        rows={5}
+                        value={editingNodeData.observations.join('\n')}
+                        onChange={(e) => setEditingNodeData({ ...editingNodeData, observations: e.target.value.split('\n') })}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      />
+                    </div>
+                    <div className="flex justify-end space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditing(false)} // Placeholder for cancel
+                        className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveNode}
+                        className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                      >
+                        保存
+                      </button>
+                    </div>
+                  </form>
+            ) : (
+              <div className="view-mode-wrapper"> {/* View Mode main wrapper */} 
+                    <div className="flex justify-between items-center mb-2">
+                      <h2 className="text-lg font-bold">{selectedNode.name}</h2>
                       <div>
-                        <h4 className="text-sm font-semibold mb-1">Inbound:</h4>
-                        <ul className="list-disc pl-5">
-                          {graphData.relations
-                            .filter((r) => r.to === selectedNode.name)
-                            .map((r, i) => (
-                              <li key={i} className="text-sm mb-1">
-                                <button
-                                  onClick={() => {
-                                    // Navigate to inbound node
-                                    const node = nodeMapRef.current.get(r.from);
-                                    if (node) {
-                                      dispatchHistory({ type: 'select', node });
-                                    }
-                                  }}
-                                  className="text-blue-600 hover:underline"
-                                >
-                                  {r.from}
-                                </button>{" "}
-                                →{" "}
-                                <span className="italic text-blue-600">
-                                  {r.relationType}
-                                </span>
-                              </li>
-                            ))}
-                        </ul>
+                        <button
+                          onClick={() => {
+                            if (selectedNode) {
+                              setEditingNodeData({ ...selectedNode });
+                              setIsEditing(true);
+                            }
+                          }}
+                          className="mr-2 p-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs"
+                        >
+                          编辑
+                        </button>
+                        <button
+                          // onClick={() => handleDeleteNode(selectedNode.id)} // Placeholder
+                          className="p-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs"
+                        >
+                          删除
+                        </button>
                       </div>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Type: {selectedNode.entityType}
+                    </p>
+
+                    {/* Observations are shown only in view mode and if they exist */}
+                    {selectedNode.observations && selectedNode.observations.length > 0 && (
+                      <>
+                        <h3 className="font-bold text-purple-800 mb-2 flex items-center">
+                          <svg
+                            className="w-4 h-4 mr-1"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z"
+                              fill="currentColor"
+                            />
+                          </svg>
+                          Observations:
+                        </h3>
+                        <ul className="list-disc pl-5 mb-4">
+                          {selectedNode.observations.map((obs, i) => (
+                            <li key={i} className="text-sm mb-1">
+                              {obs}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
                     )}
-                  </>
-                )}
+
+                    {/* MOVED RELATIONS BLOCK STARTS HERE */}
+                    {graphData ? (
+                      <>
+                        <h3 className="font-bold text-gray-700 mb-2">Relations:</h3>
+                        <div className="mb-2">
+                          <p className="text-sm">
+                            <span className="font-medium">Connections:</span>{" "}
+                            {getRelationCounts(selectedNode.name).inbound +
+                              getRelationCounts(selectedNode.name).outbound}
+                            &nbsp;({getRelationCounts(selectedNode.name).inbound}{" "}
+                            inbound, {getRelationCounts(selectedNode.name).outbound}{" "}
+                            outbound)
+                          </p>
+                        </div>
+
+                        {graphData.relations.filter(
+                          (r) => r.from === selectedNode.name
+                        ).length > 0 && (
+                          <div className="mb-3">
+                            <h4 className="text-sm font-semibold mb-1">
+                              Outbound:
+                            </h4>
+                            <ul className="list-disc pl-5">
+                              {graphData.relations
+                                .filter((r) => r.from === selectedNode.name)
+                                .map((r, i) => (
+                                  <li key={i} className="text-sm mb-1">
+                                    <span className="italic text-blue-600">
+                                      {r.relationType}
+                                    </span>{" "}
+                                    →{" "}
+                                    <button
+                                      onClick={() => {
+                                        // Navigate to outbound node
+                                        const node = nodeMapRef.current.get(r.to);
+                                        if (node) {
+                                          dispatchHistory({ type: 'select', node });
+                                        }
+                                      }}
+                                      className="text-blue-600 hover:underline"
+                                    >
+                                      {r.to}
+                                    </button>
+                                  </li>
+                                ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {graphData.relations.filter(
+                          (r) => r.to === selectedNode.name
+                        ).length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-semibold mb-1">Inbound:</h4>
+                            <ul className="list-disc pl-5">
+                              {graphData.relations
+                                .filter((r) => r.to === selectedNode.name)
+                                .map((r, i) => (
+                                  <li key={i} className="text-sm mb-1">
+                                    <button
+                                      onClick={() => {
+                                        // Navigate to inbound node
+                                        const node = nodeMapRef.current.get(r.from);
+                                        if (node) {
+                                          dispatchHistory({ type: 'select', node });
+                                        }
+                                      }}
+                                      className="text-blue-600 hover:underline"
+                                    >
+                                      {r.from}
+                                    </button>{" "}
+                                    →{" "}
+                                    <span className="italic text-blue-600">
+                                      {r.relationType}
+                                    </span>
+                                  </li>
+                                ))}
+                            </ul>
+                          </div>
+                        )}
+                      </>
+                    ) : null}
+                    {/* MOVED RELATIONS BLOCK ENDS HERE */}
+                  </div> /* Closing the View Mode main wrapper */
+                )} {/* Closing the isEditing ternary operator */}
+
+                {/* This closing div is for the main selectedNode block */}
+                {/* The relations block has been moved up into the !isEditing block */}
               </div>
             )}
           </div>
