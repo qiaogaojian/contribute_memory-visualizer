@@ -577,7 +577,14 @@ const KnowledgeGraphVisualization = () => {
         const dy = d.target.y - d.source.y;
         const x = (d.source.x + d.target.x) / 2;
         const y = (d.source.y + d.target.y) / 2;
-        const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+        let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+        
+        // Prevent text from being upside down by adjusting angle
+        // If angle is greater than 90 or less than -90, flip it by 180 degrees
+        if (angle > 90 || angle < -90) {
+          angle += 180;
+        }
+        
         return `translate(${x},${y}) rotate(${angle})`;
       });
 
